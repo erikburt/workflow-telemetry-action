@@ -74,11 +74,11 @@ export interface ProcessedDiskSizeStats {
 export interface LineGraphOptions {
   readonly label: string
   readonly axisColor: string
-  readonly line: {
+  readonly lines: {
     readonly label: string
     readonly color: string
     readonly points: ProcessedStats[]
-  }
+  }[]
 }
 
 export interface StackedArea {

@@ -1,10 +1,10 @@
 name: Test Workflow
 
 on:
-  push:
+  pull_request:
 
 jobs:
-  test:
+  this-is-a-job-name:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -12,7 +12,27 @@ jobs:
       contents: read
     steps:
       - name: Workflow Telemetry
-        uses: erikburt/workflow-telemetry-action@a55ac6965d0a9ab10a11d0b41c4b5919b30ec090
+        uses: erikburt/workflow-telemetry-action@feat/per-core-cpu
 
-      - name: Sleep
-        run: sleep 15
+      - name: Cehckout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sleep 5
+        run: sleep 5
+
+      - name: Sleep 5
+        run: sleep 5
+
+      - name: Sleep 5
+        run: sleep 5
+
+      - name: Sleep 5
+        run: sleep 5
+
+      - name: Sleep 5
+        run: sleep 5

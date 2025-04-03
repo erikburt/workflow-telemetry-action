@@ -27,6 +27,16 @@ const STAT_SERVER_PORT = 7777
 const BLACK = '#000000'
 const WHITE = '#FFFFFF'
 
+function splitToNChunks<X>(array: X[], n: number) {
+  if (n >= array.length) {
+    return [array]
+  }
+
+  const arrays: X[][] = []
+  while (array.length > 0) arrays.push(array.splice(0, n))
+  return arrays
+}
+
 async function triggerStatCollect(): Promise<void> {
   logger.debug('Triggering stat collect ...')
   const response = await axios.post(
@@ -57,16 +67,26 @@ async function reportWorkflowMetrics(): Promise<string> {
   const { diskReadX, diskWriteX } = await getDiskStats()
   const { diskAvailableX, diskUsedX } = await getDiskSizeStats()
 
-  let cpuLoad: GraphResponse | null = null;
+  let cpuLoad: GraphResponse[] | null = null
 
   if (userLoadX && userLoadX.length && systemLoadX && systemLoadX.length) {
+    const colorPalette = [
+      '#377eb8',
+      '#e41a1c',
+      '#4daf4a',
+      '#984ea3',
+      '#ff7f00',
+      '#ffff33',
+      '#a65628',
+      '#999999'
+    ]
     const coreLoadAreas = coreLoadX.map((coreLoad, index) => ({
-      label: `Core ${index + 1}`,
-      color: `#377eb8${(index + 1) * 20}`,
+      label: `Core ${index}`,
+      color: colorPalette[index % colorPalette.length],
       points: coreLoad
-    }));
+    }))
 
-    cpuLoad = await getStackedAreaGraph({
+    const cpuGraph = await getStackedAreaGraph({
       label: 'CPU Load (%)',
       axisColor,
       areas: [
@@ -79,10 +99,27 @@ async function reportWorkflowMetrics(): Promise<string> {
           label: 'System Load',
           color: '#ff7f0099',
           points: systemLoadX
-        },
-        ...coreLoadAreas
+        }
       ]
     })
+
+    const chunks = splitToNChunks(coreLoadAreas, 8);
+
+    core.info('Chunk lengths: ' + chunks.map(chunk => chunk.length).join(', '))
+
+    cpuLoad = [ cpuGraph ]
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      const chunkGraph = await getLineGraph({
+        label: `CPU Core Loads (${i + 1})`,
+        axisColor,
+        lines: chunk
+      });
+      if (chunkGraph) {
+        cpuLoad.push(chunkGraph)
+      }
+    }
   }
 
   const memoryUsage =
@@ -113,11 +150,11 @@ async function reportWorkflowMetrics(): Promise<string> {
       ? await getLineGraph({
           label: 'Network I/O Read (MB)',
           axisColor,
-          line: {
+          lines: [{
             label: 'Read',
             color: '#be4d25',
             points: networkReadX
-          }
+          }]
         })
       : null
 
@@ -126,11 +163,11 @@ async function reportWorkflowMetrics(): Promise<string> {
       ? await getLineGraph({
           label: 'Network I/O Write (MB)',
           axisColor,
-          line: {
+          lines: [{
             label: 'Write',
             color: '#6c25be',
             points: networkWriteX
-          }
+          }]
         })
       : null
 
@@ -139,11 +176,11 @@ async function reportWorkflowMetrics(): Promise<string> {
       ? await getLineGraph({
           label: 'Disk I/O Read (MB)',
           axisColor,
-          line: {
+          lines: [{
             label: 'Read',
             color: '#be4d25',
             points: diskReadX
-          }
+          }]
         })
       : null
 
@@ -152,11 +189,11 @@ async function reportWorkflowMetrics(): Promise<string> {
       ? await getLineGraph({
           label: 'Disk I/O Write (MB)',
           axisColor,
-          line: {
+          lines: [{
             label: 'Write',
             color: '#6c25be',
             points: diskWriteX
-          }
+          }]
         })
       : null
 
@@ -182,11 +219,13 @@ async function reportWorkflowMetrics(): Promise<string> {
 
   const postContentItems: string[] = []
   if (cpuLoad) {
-    postContentItems.push(
-      '### CPU Metrics',
-      `![${cpuLoad.id}](${cpuLoad.url})`,
-      ''
-    )
+    let graphs: string[] = []
+
+    graphs = cpuLoad.map((cpuLoadItem, index) => {
+      return `![${cpuLoadItem.id}](${cpuLoadItem.url})`
+    })
+
+    postContentItems.push('### CPU Metrics', ...graphs, '')
   }
   if (memoryUsage) {
     postContentItems.push(
@@ -245,7 +284,7 @@ async function getCPUStats(): Promise<ProcessedCPUStats> {
       y: element.systemLoad && element.systemLoad > 0 ? element.systemLoad : 0
     })
 
-    for (let i=0; i<element.perCoreLoad.length; i++) {
+    for (let i = 0; i < element.perCoreLoad.length; i++) {
       if (coreLoadX[i] === undefined) {
         coreLoadX[i] = []
       }
@@ -253,11 +292,10 @@ async function getCPUStats(): Promise<ProcessedCPUStats> {
       coreLoadX[i].push({
         x: element.time,
         y:
-          element.perCoreLoad[i].userLoad &&
-          element.perCoreLoad[i].userLoad > 0
+          element.perCoreLoad[i].userLoad && element.perCoreLoad[i].userLoad > 0
             ? element.perCoreLoad[i].userLoad
             : 0
-      });
+      })
     }
   })
 
@@ -394,7 +432,7 @@ async function getLineGraph(options: LineGraphOptions): Promise<GraphResponse> {
         unit: 'auto'
       }
     },
-    lines: [options.line]
+    lines: options.lines
   }
 
   let response = null

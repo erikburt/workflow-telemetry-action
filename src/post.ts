@@ -13,9 +13,6 @@ const PAGE_SIZE = 100
 const octokit: Octokit = new Octokit()
 
 async function getCurrentJob(): Promise<WorkflowJobType | null> {
-  core.info(JSON.stringify(github.context, null, 2))
-  core.info(JSON.stringify(pull_request, null, 2))
-
   const _getCurrentJob = async (): Promise<WorkflowJobType | null> => {
     for (let page = 0; ; page++) {
       const result = await octokit.rest.actions.listJobsForWorkflowRun({
@@ -33,7 +30,8 @@ async function getCurrentJob(): Promise<WorkflowJobType | null> {
       const currentJobs = jobs.filter(
         it =>
           it.status === 'in_progress' &&
-          it.runner_name === process.env.RUNNER_NAME
+          ( (it.workflow_name === workflow &&
+          it.name === job) || it.runner_name === process.env.RUNNER_NAME )
       )
       if (currentJobs && currentJobs.length) {
         return currentJobs[0]

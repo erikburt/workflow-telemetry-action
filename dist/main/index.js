@@ -31156,6 +31156,15 @@ const logger = __importStar(__nccwpck_require__(1661));
 const STAT_SERVER_PORT = 7777;
 const BLACK = '#000000';
 const WHITE = '#FFFFFF';
+function splitToNChunks(array, n) {
+    if (n >= array.length) {
+        return [array];
+    }
+    const arrays = [];
+    while (array.length > 0)
+        arrays.push(array.splice(0, n));
+    return arrays;
+}
 function triggerStatCollect() {
     return __awaiter(this, void 0, void 0, function* () {
         logger.debug('Triggering stat collect ...');
@@ -31186,12 +31195,22 @@ function reportWorkflowMetrics() {
         const { diskAvailableX, diskUsedX } = yield getDiskSizeStats();
         let cpuLoad = null;
         if (userLoadX && userLoadX.length && systemLoadX && systemLoadX.length) {
+            const colorPalette = [
+                '#377eb8',
+                '#e41a1c',
+                '#4daf4a',
+                '#984ea3',
+                '#ff7f00',
+                '#ffff33',
+                '#a65628',
+                '#999999'
+            ];
             const coreLoadAreas = coreLoadX.map((coreLoad, index) => ({
-                label: `Core ${index + 1}`,
-                color: `#377eb8${(index + 1) * 20}`,
+                label: `Core ${index}`,
+                color: colorPalette[index % colorPalette.length],
                 points: coreLoad
             }));
-            cpuLoad = yield getStackedAreaGraph({
+            const cpuGraph = yield getStackedAreaGraph({
                 label: 'CPU Load (%)',
                 axisColor,
                 areas: [
@@ -31204,10 +31223,23 @@ function reportWorkflowMetrics() {
                         label: 'System Load',
                         color: '#ff7f0099',
                         points: systemLoadX
-                    },
-                    ...coreLoadAreas
+                    }
                 ]
             });
+            const chunks = splitToNChunks(coreLoadAreas, 8);
+            core.info('Chunk lengths: ' + chunks.map(chunk => chunk.length).join(', '));
+            cpuLoad = [cpuGraph];
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+                const chunkGraph = yield getLineGraph({
+                    label: `CPU Core Loads (${i + 1})`,
+                    axisColor,
+                    lines: chunk
+                });
+                if (chunkGraph) {
+                    cpuLoad.push(chunkGraph);
+                }
+            }
         }
         const memoryUsage = activeMemoryX &&
             activeMemoryX.length &&
@@ -31234,44 +31266,44 @@ function reportWorkflowMetrics() {
             ? yield getLineGraph({
                 label: 'Network I/O Read (MB)',
                 axisColor,
-                line: {
-                    label: 'Read',
-                    color: '#be4d25',
-                    points: networkReadX
-                }
+                lines: [{
+                        label: 'Read',
+                        color: '#be4d25',
+                        points: networkReadX
+                    }]
             })
             : null;
         const networkIOWrite = networkWriteX && networkWriteX.length
             ? yield getLineGraph({
                 label: 'Network I/O Write (MB)',
                 axisColor,
-                line: {
-                    label: 'Write',
-                    color: '#6c25be',
-                    points: networkWriteX
-                }
+                lines: [{
+                        label: 'Write',
+                        color: '#6c25be',
+                        points: networkWriteX
+                    }]
             })
             : null;
         const diskIORead = diskReadX && diskReadX.length
             ? yield getLineGraph({
                 label: 'Disk I/O Read (MB)',
                 axisColor,
-                line: {
-                    label: 'Read',
-                    color: '#be4d25',
-                    points: diskReadX
-                }
+                lines: [{
+                        label: 'Read',
+                        color: '#be4d25',
+                        points: diskReadX
+                    }]
             })
             : null;
         const diskIOWrite = diskWriteX && diskWriteX.length
             ? yield getLineGraph({
                 label: 'Disk I/O Write (MB)',
                 axisColor,
-                line: {
-                    label: 'Write',
-                    color: '#6c25be',
-                    points: diskWriteX
-                }
+                lines: [{
+                        label: 'Write',
+                        color: '#6c25be',
+                        points: diskWriteX
+                    }]
             })
             : null;
         const diskSizeUsage = diskUsedX && diskUsedX.length && diskAvailableX && diskAvailableX.length
@@ -31294,7 +31326,11 @@ function reportWorkflowMetrics() {
             : null;
         const postContentItems = [];
         if (cpuLoad) {
-            postContentItems.push('### CPU Metrics', `![${cpuLoad.id}](${cpuLoad.url})`, '');
+            let graphs = [];
+            graphs = cpuLoad.map((cpuLoadItem, index) => {
+                return `![${cpuLoadItem.id}](${cpuLoadItem.url})`;
+            });
+            postContentItems.push('### CPU Metrics', ...graphs, '');
         }
         if (memoryUsage) {
             postContentItems.push('### Memory Metrics', `![${memoryUsage.id}](${memoryUsage.url})`, '');
@@ -31339,8 +31375,7 @@ function getCPUStats() {
                 }
                 coreLoadX[i].push({
                     x: element.time,
-                    y: element.perCoreLoad[i].userLoad &&
-                        element.perCoreLoad[i].userLoad > 0
+                    y: element.perCoreLoad[i].userLoad && element.perCoreLoad[i].userLoad > 0
                         ? element.perCoreLoad[i].userLoad
                         : 0
                 });
@@ -31459,7 +31494,7 @@ function getLineGraph(options) {
                     unit: 'auto'
                 }
             },
-            lines: [options.line]
+            lines: options.lines
         };
         let response = null;
         try {
