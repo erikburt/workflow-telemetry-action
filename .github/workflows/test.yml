@@ -1,0 +1,18 @@
+name: Test Workflow
+
+on:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      actions: read
+      contents: read
+    steps:
+      - name: Workflow Telemetry
+        uses: erikburt/workflow-telemetry-action@a55ac6965d0a9ab10a11d0b41c4b5919b30ec090
+
+      - name: Sleep
+        run: sleep 15
