@@ -13,6 +13,9 @@ const PAGE_SIZE = 100
 const octokit: Octokit = new Octokit()
 
 async function getCurrentJob(): Promise<WorkflowJobType | null> {
+  core.info(JSON.stringify(github.context, null, 2))
+  core.info(JSON.stringify(pull_request, null, 2))
+
   const _getCurrentJob = async (): Promise<WorkflowJobType | null> => {
     for (let page = 0; ; page++) {
       const result = await octokit.rest.actions.listJobsForWorkflowRun({

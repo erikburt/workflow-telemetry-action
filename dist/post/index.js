@@ -40447,6 +40447,8 @@ const PAGE_SIZE = 100;
 const octokit = new action_1.Octokit();
 function getCurrentJob() {
     return __awaiter(this, void 0, void 0, function* () {
+        core.info(JSON.stringify(github.context, null, 2));
+        core.info(JSON.stringify(pull_request, null, 2));
         const _getCurrentJob = () => __awaiter(this, void 0, void 0, function* () {
             for (let page = 0;; page++) {
                 const result = yield octokit.rest.actions.listJobsForWorkflowRun({
