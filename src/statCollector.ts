@@ -51,31 +51,39 @@ async function reportWorkflowMetrics(): Promise<string> {
       core.warning(`Invalid theme: ${theme}`)
   }
 
-  const { userLoadX, systemLoadX } = await getCPUStats()
+  const { userLoadX, systemLoadX, coreLoadX } = await getCPUStats()
   const { activeMemoryX, availableMemoryX } = await getMemoryStats()
   const { networkReadX, networkWriteX } = await getNetworkStats()
   const { diskReadX, diskWriteX } = await getDiskStats()
   const { diskAvailableX, diskUsedX } = await getDiskSizeStats()
 
-  const cpuLoad =
-    userLoadX && userLoadX.length && systemLoadX && systemLoadX.length
-      ? await getStackedAreaGraph({
-          label: 'CPU Load (%)',
-          axisColor,
-          areas: [
-            {
-              label: 'User Load',
-              color: '#e41a1c99',
-              points: userLoadX
-            },
-            {
-              label: 'System Load',
-              color: '#ff7f0099',
-              points: systemLoadX
-            }
-          ]
-        })
-      : null
+  let cpuLoad: GraphResponse | null = null;
+
+  if (userLoadX && userLoadX.length && systemLoadX && systemLoadX.length) {
+    const coreLoadAreas = coreLoadX.map((coreLoad, index) => ({
+      label: `Core ${index + 1}`,
+      color: `#377eb8${(index + 1) * 20}`,
+      points: coreLoad
+    }));
+
+    cpuLoad = await getStackedAreaGraph({
+      label: 'CPU Load (%)',
+      axisColor,
+      areas: [
+        {
+          label: 'User Load',
+          color: '#e41a1c99',
+          points: userLoadX
+        },
+        {
+          label: 'System Load',
+          color: '#ff7f0099',
+          points: systemLoadX
+        },
+        ...coreLoadAreas
+      ]
+    })
+  }
 
   const memoryUsage =
     activeMemoryX &&
@@ -218,6 +226,7 @@ async function reportWorkflowMetrics(): Promise<string> {
 async function getCPUStats(): Promise<ProcessedCPUStats> {
   const userLoadX: ProcessedStats[] = []
   const systemLoadX: ProcessedStats[] = []
+  const coreLoadX: ProcessedStats[][] = []
 
   logger.debug('Getting CPU stats ...')
   const response = await axios.get(`http://localhost:${STAT_SERVER_PORT}/cpu`)
@@ -235,9 +244,24 @@ async function getCPUStats(): Promise<ProcessedCPUStats> {
       x: element.time,
       y: element.systemLoad && element.systemLoad > 0 ? element.systemLoad : 0
     })
+
+    for (let i=0; i<element.perCoreLoad.length; i++) {
+      if (coreLoadX[i] === undefined) {
+        coreLoadX[i] = []
+      }
+
+      coreLoadX[i].push({
+        x: element.time,
+        y:
+          element.perCoreLoad[i].userLoad &&
+          element.perCoreLoad[i].userLoad > 0
+            ? element.perCoreLoad[i].userLoad
+            : 0
+      });
+    }
   })
 
-  return { userLoadX, systemLoadX }
+  return { userLoadX, systemLoadX, coreLoadX }
 }
 
 async function getMemoryStats(): Promise<ProcessedMemoryStats> {

@@ -3,11 +3,16 @@ import { components } from '@octokit/openapi-types'
 
 export type WorkflowJobType = components['schemas']['job']
 
-export interface CPUStats {
+
+export interface CPUStat {
+  readonly totalLoad: number;
+  readonly userLoad: number;
+  readonly systemLoad: number;
+}
+
+export interface CPUStats extends CPUStat {
   readonly time: number
-  readonly totalLoad: number
-  readonly userLoad: number
-  readonly systemLoad: number
+  readonly perCoreLoad: CPUStat[]
 }
 
 export interface MemoryStats {
@@ -43,6 +48,7 @@ export interface ProcessedStats {
 export interface ProcessedCPUStats {
   readonly userLoadX: ProcessedStats[]
   readonly systemLoadX: ProcessedStats[]
+  readonly coreLoadX: ProcessedStats[][]
 }
 
 export interface ProcessedMemoryStats {
