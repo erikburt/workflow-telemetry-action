@@ -1,5 +1,5 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
-import si from 'systeminformation'
+import si, { system } from 'systeminformation'
 import * as logger from './logger'
 import {
   CPUStats,
@@ -36,7 +36,12 @@ function collectCPUStats(statTime: number, timeInterval: number): Promise<any> {
         time: statTime,
         totalLoad: data.currentLoad,
         userLoad: data.currentLoadUser,
-        systemLoad: data.currentLoadSystem
+        systemLoad: data.currentLoadSystem,
+        perCoreLoad: data.cpus.map((cpu) => ({
+          totalLoad: cpu.load,
+          userLoad: cpu.loadUser,
+          systemLoad: cpu.loadSystem,
+        }))
       }
       cpuStatsHistogram.push(cpuStats)
     })
